@@ -1,0 +1,1 @@
+# Wazuh-Single-node-Ubuntu-24.04-
