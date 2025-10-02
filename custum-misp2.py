@@ -1,104 +1,105 @@
 #!/var/ossec/framework/python/bin/python3
-import sys, os, json, re, ipaddress, requests
+# custom-misp2.py - simplified integration with Wazuh and MISP
+
+import sys
+import os
+import json
+import re
+import ipaddress
+import requests
 from socket import socket, AF_UNIX, SOCK_DGRAM
 from requests.exceptions import ConnectionError
 
-# Wazuh queue socket
+# --- Wazuh queue socket ---
 pwd = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 socket_addr = f"{pwd}/queue/sockets/queue"
 
-# MISP config
-MISP_BASE_URL = "https://172.17.1.227/attributes/restSearch/"
-MISP_API_KEY = "5FXYU6Hy2Db3iDsg5wTI35WlMN6424JpchSF38AO"
+# --- MISP Config ---
+MISP_URL = "https://172.17.1.227/attributes/restSearch"
+MISP_KEY = "5FXYU6Hy2Db3iDsg5wTI35WlMN6424JpchSF38AO"
 MISP_HEADERS = {
     "Content-Type": "application/json",
-    "Authorization": MISP_API_KEY,
+    "Authorization": MISP_KEY,
     "Accept": "application/json"
 }
 
+# --- Send alert back into Wazuh ---
 def send_event(msg, agent=None):
     if not agent or agent.get("id") == "000":
-        string = f'1:misp:{json.dumps(msg)}'
+        message = f"1:misp:{json.dumps(msg)}"
     else:
-        string = f'1:[{agent["id"]}] ({agent["name"]}) {agent.get("ip","any")}->misp:{json.dumps(msg)}'
+        agent_id = agent["id"]
+        agent_name = agent.get("name", "unknown")
+        agent_ip = agent.get("ip", "any")
+        message = f"1:[{agent_id}] ({agent_name}) {agent_ip}->misp:{json.dumps(msg)}"
     with socket(AF_UNIX, SOCK_DGRAM) as sock:
         sock.connect(socket_addr)
-        sock.send(string.encode())
+        sock.send(message.encode())
 
-# Read alert file
-with open(sys.argv[1]) as f:
-    alert = json.load(f)
+# --- Extract IoC from alert ---
+def extract_ioc(alert):
+    try:
+        groups = alert["rule"]["groups"]
+        if "sysmon_event_22" in groups:
+            return alert["data"]["win"]["eventdata"]["queryName"]
+        elif "sysmon_event3" in groups:
+            ip_val = alert["data"]["win"]["eventdata"]["destinationIp"]
+            if ipaddress.ip_address(ip_val).is_global:
+                return ip_val
+        elif "sysmon_event1" in groups or "sysmon_event6" in groups or "sysmon_event7" in groups:
+            return re.search(r"\b[A-Fa-f0-9]{64}\b", alert["data"]["win"]["eventdata"]["hashes"]).group(0)
+        elif "sysmon_event_15" in groups:
+            return alert["data"]["win"]["eventdata"]["hash"]
+        elif alert["rule"]["groups"][0] == "ossec" and alert["rule"]["groups"][2] == "syscheck_entry_added":
+            return alert["syscheck"]["sha256_after"]
+    except Exception:
+        return None
+    return None
 
-alert_output = {}
-groups = alert["rule"].get("groups", [])
-event_source = groups[0] if len(groups) > 0 else ""
-event_type   = groups[2] if len(groups) > 2 else ""
+# --- Query MISP ---
+def query_misp(value):
+    try:
+        payload = {"value": value, "limit": 1}
+        r = requests.post(MISP_URL, headers=MISP_HEADERS, json=payload, verify=False, timeout=10)
+        if r.status_code == 200:
+            return r.json()
+        else:
+            return {"error": f"MISP HTTP {r.status_code}"}
+    except ConnectionError:
+        return {"error": "Connection Error to MISP API"}
 
-regex_sha256 = re.compile(r"\b[A-Fa-f0-9]{64}\b")
-wazuh_event_param = None
+# --- Main ---
+def main():
+    if len(sys.argv) < 2:
+        sys.exit(1)
 
-try:
-    if event_source == "windows":
-        if event_type in ("sysmon_event1","sysmon_event6","sysmon_event7","sysmon_event_23","sysmon_event_24","sysmon_event_25"):
-            hashes_str = alert["data"]["win"]["eventdata"].get("hashes","")
-            m = regex_sha256.search(hashes_str)
-            if m: wazuh_event_param = m.group(0)
+    with open(sys.argv[1]) as f:
+        alert = json.load(f)
 
-        elif event_type == "sysmon_event_15":
-            h = alert["data"]["win"]["eventdata"].get("hash","")
-            m = regex_sha256.search(h)
-            if m: wazuh_event_param = m.group(0)
+    ioc = extract_ioc(alert)
+    if not ioc:
+        sys.exit(0)
 
-        elif event_type == "sysmon_event3":
-            if alert["data"]["win"]["eventdata"].get("destinationIsIpv6") == "false":
-                dst_ip = alert["data"]["win"]["eventdata"].get("destinationIp")
-                if dst_ip and ipaddress.ip_address(dst_ip).is_global:
-                    wazuh_event_param = dst_ip
+    misp_resp = query_misp(ioc)
 
-        elif event_type == "sysmon_event_22":
-            wazuh_event_param = alert["data"]["win"]["eventdata"].get("queryName")
+    if "error" in misp_resp:
+        output = {"integration": "misp", "misp": {"error": misp_resp["error"]}}
+        send_event(output, alert.get("agent"))
+    else:
+        attrs = misp_resp.get("response", {}).get("Attribute", [])
+        if attrs:
+            attr = attrs[0]
+            output = {
+                "integration": "misp",
+                "misp": {
+                    "event_id": attr.get("event_id"),
+                    "category": attr.get("category"),
+                    "value": attr.get("value"),
+                    "type": attr.get("type"),
+                },
+                "rule_description": alert["rule"].get("description", "")
+            }
+            send_event(output, alert.get("agent"))
 
-    elif event_source == "linux" and event_type == "sysmon_event3":
-        if alert["data"]["eventdata"].get("destinationIsIpv6") == "false":
-            dst_ip = alert["data"]["eventdata"].get("DestinationIp")
-            if dst_ip and ipaddress.ip_address(dst_ip).is_global:
-                wazuh_event_param = dst_ip
-
-    elif event_source == "ossec" and event_type == "syscheck_entry_added":
-        wazuh_event_param = alert["syscheck"].get("sha256_after")
-
-except Exception as e:
-    sys.exit(0)
-
-if not wazuh_event_param:
-    sys.exit(0)
-
-# Query MISP
-try:
-    misp_api_response = requests.get(
-        f"{MISP_BASE_URL}value:{wazuh_event_param}",
-        headers=MISP_HEADERS,
-        verify=False
-    ).json()
-except ConnectionError:
-    alert_output["misp"] = {"error":"Connection Error to MISP API"}
-    alert_output["integration"] = "misp"
-    send_event(alert_output, alert.get("agent",{}))
-    sys.exit(0)
-
-attributes = misp_api_response.get("response",{}).get("Attribute", [])
-if attributes:
-    attr = attributes[0]
-    alert_output["misp"] = {
-        "event_id": attr["event_id"],
-        "category": attr["category"],
-        "value": attr["value"],
-        "type": attr["type"],
-        "source": {"description": alert["rule"].get("description","")}
-    }
-    alert_output["integration"] = "misp"
-else:
-    alert_output["misp"] = {"status":"no_match","value":wazuh_event_param}
-    alert_output["integration"] = "misp"
-
-send_event(alert_output, alert.get("agent",{}))
+if __name__ == "__main__":
+    main()
