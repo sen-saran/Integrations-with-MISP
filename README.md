@@ -7,7 +7,7 @@ nano /var/ossec/integrations/custom-misp.py
 ```
 ให้ทำกำหนดสิทธิ custom-misp.py ของท่านดังนี้ 
 ```
-chown root:wazuh /var/ossec/integrations/custom-misp.p && chmod 750 /var/ossec/integrations/custom-misp.py
+chown root:wazuh /var/ossec/integrations/custom-misp.py && chmod 750 /var/ossec/integrations/custom-misp.py
 ```
 ตรวจสอบสิทธิ custom-misp.py ของท่านดังนี้ 
 ```
@@ -182,7 +182,12 @@ Get-Service wazuh
 3. ตรวจสอบที่ Alert ของ Wazuh
 4. rule-description จะแสดง MISP - IoC found in Threat Intel - Category : ....
 
-   
+Test api
+curl  --header "Authorization: 5FXYU6Hy2Db3iDsg5wTI35WlMN6424JpchSF38AO" \
+      --header "Accept: application/json" \
+      --header "Content-Type: application/json" https://172.17.1.227/ 
+
+      
 > ท่านสามารถทดสอบการติดตั้ง ssl certificate ของท่านได้ที่ https://www.ssllabs.com/ssltest/
 > บน Wazuh Manager
 > ตรวจสอบว่า agent online
