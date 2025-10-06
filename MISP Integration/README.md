@@ -3,24 +3,126 @@
 # MISP Integration [![Awesome](https://img.shields.io/badge/SOCFortress-Worlds%20First%20Free%20Cloud%20SOC-orange)](https://www.dms.go.th)
 > Interacting With MISP’s API to detect IoCs within our Wazuh Alerts.
 >> ⚙️ Threat Intelligence กับ Wazuh และ MISP
+>> ตัวอย่าง Flow
 >> 🟩 Sysmon → 🟦 Wazuh → 🟥 MISP → 🟧 Alert on Dashboard
+Sysmon Event (จาก Windows Agent)
+        ↓
+Wazuh Manager รับ log
+        ↓
+<integration name="custom-misp"> ใน ossec.conf ถูกเรียก
+        ↓
+/var/ossec/integrations/custom-misp.py รันขึ้น
+        ↓
+custom-misp.py ใช้ MISP REST API → /attributes/restSearch
+        ↓
+ถ้าเจอ IoC ที่ตรงกัน → ส่ง JSON กลับเข้า Wazuh queue
+        ↓
+ruleset (100620 / 100621 / 100622 / 920100 / 920101) ทำงาน
+        ↓
+Wazuh สร้าง Alert และส่งต่อให้ Dashboard / Telegram / SIEM อื่น ๆ
+>>
+[ Windows Agent ]
+     ↓
+ Sysmon Event (DNS Query)
+     ↓
+[ Wazuh Manager ]
+     ↓
+ custom-misp.py → Query IoC (เช่น domain: gamma.app)
+     ↓
+ MISP → ตรวจสอบว่าตรงกับ IoC ที่มีหรือไม่
+     ↓
+ หากเจอ: Wazuh rule 100622 → ตั้ง group "misp_alert"
+     ↓
+ Wazuh rule 920100 → "MISP IoC match detected"
+Data Flow Diagram
+graph TD
+    A[Sysmon Event (DNS / Process / Network)] -->|Event Forwarder| B[Wazuh Agent]
+    B -->|Send Event| C[Wazuh Manager]
+    C -->|Trigger custom-misp.py| D[MISP API Search]
+    D -->|Response with IoC match| E[Wazuh Integration Queue]
+    E -->|Integration JSON {"integration":"misp",...}| F[Wazuh Ruleset]
+    F -->|100620→100622→920100 chain| G[Alerts.json / Kibana]
+
+MISP ↔ Wazuh ↔ Sysmon Threat Intel Correlation Flow
+graph TD
+    A[Sysmon Event 22/1/3] -->|DNS query / network / process| B(custom-misp.py)
+    B -->|ส่ง IoC (JSON event)| C[/Wazuh Manager Integration/]
+    C -->|จับ event "integration:misp"| D[Rule ID 100620 - Base MISP Event]
+    D -->|ตรวจพบ category จาก MISP| E[Rule ID 100622 - IoC Found]
+    E -->|สร้าง group: misp_alert| F[Rule ID 920000 - Base Group]
+    F -->|ยืนยัน IoC Alert| G[Rule ID 920100 - MISP IoC match detected]
+    G -->|Mapping DNS query| H[Rule ID 920101 - Sysmon Event 22 mapping]
+    H -->|Generate Alert JSON| I[Wazuh Dashboard / Kibana / SIEM]
+[ Sysmon Event 22 : DNS query (gamma.app) ]
+                │
+                ▼
+        ┌───────────────┐
+        │ Wazuh Manager │
+        └───────────────┘
+                │
+                ▼
+   [ Decoder windows_eventchannel ]
+                │
+                ▼
+        ┌───────────────────────────┐
+        │ Rule 61650 (Sysmon Event) │
+        └───────────────────────────┘
+                │
+                ▼
+        [ Integration: custom-misp2.py ]
+                │
+                ├── Extract IoC (gamma.app)
+                ├── Query MISP API (/attributes/restSearch)
+                └── ถ้า HIT → ส่ง JSON:
+                     {"integration":"misp",
+                      "misp":{"value":"gamma.app", ...},
+                      "rule":{"groups":["misp_alert"]}}
+                │
+                ▼
+        ┌───────────────────────┐
+        │ Wazuh JSON Decoder    │
+        └───────────────────────┘
+                │
+                ▼
+        ┌─────────────────────────────┐
+        │ local_rules.xml             │
+        │ Rule 920100 (if_group=misp_alert)
+        └─────────────────────────────┘
+                │
+                ▼
+        [ Alert generated:  
+          "MISP IoC match detected: gamma.app 
+           [Category: Network activity]" ]
+
+จากนั้นเชื่อมต่อกับ MISP และ Telegram Alert Pipeline
+Sysmon (Event 22)
+   ↓
+Wazuh Agent
+   ↓
+Wazuh Manager
+   ↓
+custom-misp.py → MISP REST API → match IoC
+   ↓
+Rule 920100 → Trigger alert
+   ↓
+custom-telegram.py → ส่ง Telegram Alert
+
 <table>
   <tr>
-   <td>องค์ประกอบ</td>
-   <td>หน้าที่</td>
+   	<td>องค์ประกอบ</td>
+   	<td>หน้าที่</td>
+ 	<td>การทำงาน</td>
   </tr>
   <tr>
    <td>MISP (Malware Information Sharing Platform)</td>
    <td>แหล่งจัดเก็บและแชร์ Threat Intelligence เช่น IP, Domain, Hash, Email, URL ฯลฯ</td>
+   <td>ใช้ REST API /attributes/restSearch และ Key สำหรับ Authentication</td> 	  
   </tr>	  
 	<tr>
    <td>Wazuh (SIEM/EDR)</td>
    <td>เครื่องมือตรวจจับเหตุการณ์ (Sysmon, Agent logs, OSSEC) แล้วนำมาวิเคราะห์เทียบกับ IoC จาก MISP</td>
+	<td>ใช้ Integration (custom-misp.py) เชื่อมระหว่างเหตุการณ์ และ Ruleset แปลงผลการตรวจจับเป็น Alert พร้อม</td>
 	</tr>
-	 <tr>
-   <td>Integration (custom-misp.py)</td>
-   <td>เป็น “สะพาน” เชื่อมระหว่าง เหตุการณ์ที่เกิดขึ้นจริงในระบบคุณ กับ ฐานข้อมูลภัยคุกคามจาก MISP</td>
-  </tr>
   <table>
 
 
@@ -353,7 +455,6 @@ With right values for your MISP instance. The root CA used to sign the digital c
 
 Wazuh manager config for this integration </global> Paste : nano /var/ossec/etc/ossec.conf
 
-
 ```
 <integration>
  <name>custom-misp</name>  
@@ -362,9 +463,7 @@ Wazuh manager config for this integration </global> Paste : nano /var/ossec/etc/
 </integration>
 ```
 
-
 Detection rules: nano /var/ossec/etc/rules/100620-misp.xml
-
 
 ```
 <group name="misp,">
@@ -389,8 +488,6 @@ Detection rules: nano /var/ossec/etc/rules/100620-misp.xml
 </group>
 ```
 Detection rules: nano /var/ossec/etc/rules/misp.xml
-
-
 ```
 <group name="misp,sysmon,windows,">
   <!-- Define base group for misp_alert -->
@@ -417,29 +514,184 @@ Detection rules: nano /var/ossec/etc/rules/misp.xml
   </rule>
 </group>
 ```
-## Test Alerts (examples):
 
-Restart Wazuh manager:
+เปลี่ยน Permission ของไฟล์ :
 ```
-sudo chown root:ossec /var/ossec/etc/rules/*
-sudo chmod 640 /var/ossec/etc/rules/*
+sudo chown root:wazuh /var/ossec/etc/rules/*
+sudo chmod 750 /var/ossec/etc/rules/*
 ```
 
-## Test Alerts (examples):
+## ขั้นตอนทดสอบการทำงานของ Threat Intelligence (Wazuh + MISP)
+# ขั้นตอนที่ 1: เตรียม MISP
+1. เข้าระบบ MISP Web UI → ไปที่ Events → Add Event
+2. สร้าง Event ใหม่ เช่น
+```
+Event Name: bing.com
+Threat Level: Medium
+Distribution: Your Organization Only
+```
+3. เพิ่ม Attribute (IoC) ตัวอย่าง:
+```
+Type: domain
+Category: Network activity
+Value: gamma.app
+```
+4. ตรวจสอบว่า Event ถูก “Published” แล้ว (คลิกปุ่ม Publish)
+   
+# ขั้นตอนที่ 2: ตรวจสอบการเชื่อมต่อ MISP API
+บน Wazuh Manager:
+```
+curl -k -X POST "https://172.17.1.227/attributes/restSearch" \
+  -H "Authorization: 5FXYU6Hy2Db3iDsg5wTI35WlMN6424JpchSF38AO" \
+  -H "Content-Type: application/json" \
+  -d '{"value": "gamma.app", "limit": 1}'
+```
+OUTPUT แปลว่า MISP พร้อมใช้งานแล้ว:
+```
+{"response": {"Attribute": [{"category": "Network activity", "value": "gamma.app"}]}}
+```
 
-Restart Wazuh manager:
+# ขั้นตอนที่ 3: ตรวจสอบ Integration กับ Wazuh
+บน Wazuh Manager:
 ```
 sudo systemctl restart wazuh-manager
 ```
-ดู log โหลด rules:
+ทดสอบ Logtest:
 ```
-grep misp /var/ossec/logs/ossec.log | grep loaded
+sudo /var/ossec/bin/wazuh-logtest
 ```
-ทดสอบด้วย logtest:
-```
-/var/ossec/bin/wazuh-logtest
+วาง JSON เพื่อทดสอบ:
 ```
 {"integration":"misp","misp":{"event_id":"5","category":"Network activity","value":"gamma.app","type":"domain"}}
+```
+OUTPUT แปลว่า MISP IoC Detected:
+```
+Starting wazuh-logtest v4.12.0
+Type one log per line
+
+{"integration":"misp","misp":{"event_id":"5","category":"Network activity","value":"gamma.app","type":"domain"}}
+
+** Wazuh-Logtest: WARNING: (7613): Rule ID '61650' does not exist but 'overwrite' is set to 'yes'. Still, the rule will be loaded.
+
+**Phase 1: Completed pre-decoding.
+
+**Phase 2: Completed decoding.
+        name: 'json'
+        integration: 'misp'
+        misp.category: 'Network activity'
+        misp.event_id: '5'
+        misp.type: 'domain'
+        misp.value: 'gamma.app'
+
+**Phase 3: Completed filtering (rules).
+        id: '920100'
+        level: '12'
+        description: 'MISP IoC match detected: gamma.app [Category: Network activity]'
+        groups: '['misp', 'sysmon', 'windows', 'misp', 'alert', 'sysmon', 'misp_alert']'
+        firedtimes: '1'
+        mail: 'True'
+**Alert to be generated.
+```
+# ขั้นตอนที่ 4: ตรวจสอบว่า Sysmon ติดตั้งแล้วหรือยัง ที่ติดตั้ง Agent
+เปิด PowerShell (Run as Administrator) แล้วพิมพ์ :
+```
+Get-Service wazuh
+```
+Output: 
+```
+PS C:\Windows\system32> Get-Service wazuh
+
+Status   Name               DisplayName
+------   ----               -----------
+Running  WazuhSvc           wazuh
+```
+เปิด Notepad (Run as Administrator) ไปที่ C:\Program Files (x86)\ossec-agent\ossec.conf ตรวจสอบว่ามี Config นี้:
+```
+<!-- Sysmon Event Channel -->
+<localfile>
+  <location>Microsoft-Windows-Sysmon/Operational</location>
+  <log_format>eventchannel</log_format>
+</localfile>
+```
+หรือ ossec.log ตรวจสอบว่ามี Connected :
+```
+2025/10/06 13:17:59 wazuh-agent: INFO: (4102): Connected to the server ([172.17.1.225]:1514/tcp).
+2025/10/06 13:17:59 wazuh-agent: INFO: Server responded. Releasing lock.
+2025/10/06 13:18:02 wazuh-agent: INFO: Agent is now online. Process unlocked, continuing...
+2025/10/06 14:10:27 wazuh-modulesd:syscollector: INFO: Starting evaluation.
+2025/10/06 14:11:04 wazuh-modulesd:syscollector: INFO: Evaluation finished.
+```
+
+# ขั้นตอนที่ 5: ทดสอบจาก Windows Agent
+บนเครื่อง Windows :
+```
+ping gamma.app
+```
+กลับมาที่ Wazuh Manager ดูผล Alert : 
+```
+tail -f /var/ossec/logs/misp-debug.log | grep gamma.app
+```
+Output: 
+```
+wazuh@wazuh:/var/ossec/etc/rules$ tail -f /var/ossec/logs/misp-debug.log | grep gamma.app
+2025-09-30 12:30:51,190 [DEBUG] Extracted IoC value = gamma.app
+2025-09-30 12:30:51,190 [DEBUG] POST https://172.17.1.227/attributes/restSearch with payload={'value': 'gamma.app', 'limit': 1}
+2025-09-30 12:30:51,288 [DEBUG] Raw response text={"response": {"Attribute": [{"id":"9","event_id":"5","object_id":"0","object_relation":null,"category":"Network activity","type":"domain","to_ids":false,"uuid":"05a7f8b1-646c-4c70-a989-416b55553e34","timestamp":"1759221781","distribution":"5","sharing_group_id":"0","comment":"","deleted":false,"disable_correlation":false,"first_seen":null,"last_seen":null,"value":"gamma.app","Event":{"id":"5","info":"bing.com","org_id":"1","orgc_id":"1","uuid":"230513a0-c1d9-47ea-8b0f-80e4b1e0a94e","user_id":"3"
+```
+หรือ Wazuh Manager ดูผล Alert ที่ถูกจับได้: 
+```
+tail -f /var/ossec/logs/alerts/alerts.json | grep misp
+```
+Output: 
+```
+wazuh@wazuh:/var/ossec/etc/rules$ tail -f /var/ossec/logs/alerts/alerts.json | grep misp
+{"timestamp":"2025-10-06T06:46:26.316+0000","rule":{"level":12,"description":"MISP IoC match detected: gamma.app [Category: Network activity]","id":"920100","firedtimes":6,"mail":true,"groups":["misp","sysmon","windows","misp","alert","sysmon","misp_alert"]},"agent":{"id":"005","name":"PC01","ip":"10.6.35.107"},"manager":{"name":"wazuh"},"id":"1759733186.3060535635","decoder":{"name":"json"},"data":{"integration":"misp","misp":{"event_id":"5","category":"Network activity","value":"gamma.app","type":"domain"},"rule":{"groups":["misp_alert"]},"rule_description":"Sysmon - Event ID 22: DNSEvent (DNS query)"},"location":"misp"}
+```
+
+# ขั้นตอนที่ 6: ทดสอบจาก Alert Telegrams
+ตรวจสอบไฟล์ และ Permission :
+```
+ls -l /var/ossec/integrations/ | grep telegram
+```
+Output :
+```
+wazuh@wazuh:/var/ossec/etc/rules$ ls -l /var/ossec/integrations/ | grep telegram
+-rwxr-x--- 1 root wazuh   845 Sep 30 08:12 custom-telegram
+-rwxr-x--- 1 root wazuh  2563 Sep 30 08:11 custom-telegram.py
+```
+ตรวจสอบ Config :
+```
+cat /var/ossec/etc/ossec.conf | grep custom-telegram
+```
+Output :
+```
+wazuh@wazuh:/var/ossec/etc/rules$ cat /var/ossec/etc/ossec.conf | grep custom-telegram
+     <name>custom-telegram</name>
+```
+
+บนเครื่อง Windows:
+```
+ping gamma.app
+```
+กลับมาที่ Wazuh Manager ดูผล Alert : 
+```
+tail -f /var/ossec/logs/integrations.log
+```
+Output: 
+```
+wazuh@wazuh:/var/ossec/etc/rules$ tail -f /var/ossec/logs/integrations.log
+MSG: {'chat_id': '-4827186989', 'text': '*MISP IoC match detected: bing.com [Category: Network activity]*\n\n*Groups:* misp, sysmon, windows, misp, alert, sysmon, misp alert\n*Rule:* 920100 (Level 12)\n\n*Agent:* PC01 (005)\n*Agent IP:* 10.6.35.107', 'parse_mode': 'markdown'}
+```
+หรือ ผล Response : 
+```
+grep telegram /var/ossec/logs/integrations.log
+```
+Output: 
+```
+wazuh@wazuh:/var/ossec/etc/rules$ grep telegram /var/ossec/logs/integrations.log
+telegram response: <Response [200]>
+```
+
 
 
 ## Alerts (examples):
