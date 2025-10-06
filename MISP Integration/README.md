@@ -71,15 +71,7 @@
 
 ## 🔄 Data Flow Diagram
 
-```mermaid
-graph TD
-    A[Sysmon Event (DNS / Process / Network)] -->|Event Forwarder| B[Wazuh Agent]
-    B -->|Send Event| C[Wazuh Manager]
-    C -->|Trigger custom-misp.py| D[MISP API Search]
-    D -->|Response with IoC match| E[Wazuh Integration Queue]
-    E -->|Integration JSON {"integration":"misp",...}| F[Wazuh Ruleset]
-    F -->|100620→100622→920100 chain| G[Alerts.json / Kibana]
-
+```
 Sysmon Event (จาก Windows Agent)
         ↓
 Wazuh Manager รับ log
@@ -109,26 +101,7 @@ Wazuh สร้าง Alert และส่งต่อให้ Dashboard / Tel
  หากเจอ: Wazuh rule 100622 → ตั้ง group "misp_alert"
      ↓
  Wazuh rule 920100 → "MISP IoC match detected"
-Data Flow Diagram
-graph TD
-    A[Sysmon Event (DNS / Process / Network)] -->|Event Forwarder| B[Wazuh Agent]
-    B -->|Send Event| C[Wazuh Manager]
-    C -->|Trigger custom-misp.py| D[MISP API Search]
-    D -->|Response with IoC match| E[Wazuh Integration Queue]
-    E -->|Integration JSON {"integration":"misp",...}| F[Wazuh Ruleset]
-    F -->|100620→100622→920100 chain| G[Alerts.json / Kibana]
 
-MISP ↔ Wazuh ↔ Sysmon Threat Intel Correlation Flow
-graph TD
-    A[Sysmon Event 22/1/3] -->|DNS query / network / process| B(custom-misp.py)
-    B -->|ส่ง IoC (JSON event)| C[/Wazuh Manager Integration/]
-    C -->|จับ event "integration:misp"| D[Rule ID 100620 - Base MISP Event]
-    D -->|ตรวจพบ category จาก MISP| E[Rule ID 100622 - IoC Found]
-    E -->|สร้าง group: misp_alert| F[Rule ID 920000 - Base Group]
-    F -->|ยืนยัน IoC Alert| G[Rule ID 920100 - MISP IoC match detected]
-    G -->|Mapping DNS query| H[Rule ID 920101 - Sysmon Event 22 mapping]
-    H -->|Generate Alert JSON| I[Wazuh Dashboard / Kibana / SIEM]
-[ Sysmon Event 22 : DNS query (gamma.app) ]
                 │
                 ▼
         ┌───────────────┐
