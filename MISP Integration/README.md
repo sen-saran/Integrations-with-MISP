@@ -2,7 +2,25 @@
 
 # MISP Integration [![Awesome](https://img.shields.io/badge/SOCFortress-Worlds%20First%20Free%20Cloud%20SOC-orange)](https://www.dms.go.th)
 > Interacting With MISP’s API to detect IoCs within our Wazuh Alerts.
-
+⚙️ Threat Intelligence กับ Wazuh และ MISP
+<table>
+  <tr>
+   <td>องค์ประกอบ</td>
+   <td>หน้าที่</td>
+  </tr>
+  <tr>
+   <td>MISP (Malware Information Sharing Platform)</td>
+   <td>แหล่งจัดเก็บและแชร์ Threat Intelligence เช่น IP, Domain, Hash, Email, URL ฯลฯ</td>
+   <td>Wazuh (SIEM/EDR)</td>
+   <td>เครื่องมือตรวจจับเหตุการณ์ (Sysmon, Agent logs, OSSEC) แล้วนำมาวิเคราะห์เทียบกับ IoC จาก MISP</td>
+   <td>Integration (custom-misp.py)</td>
+   <td>เป็น “สะพาน” เชื่อมระหว่าง เหตุการณ์ที่เกิดขึ้นจริงในระบบคุณ กับ ฐานข้อมูลภัยคุกคามจาก MISP</td>
+  </tr>
+  <table>
+	
+	
+	
+	
 
 </div>
 
