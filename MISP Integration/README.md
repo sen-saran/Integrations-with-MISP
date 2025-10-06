@@ -5,6 +5,81 @@
 >> ⚙️ Threat Intelligence กับ Wazuh และ MISP
 >> ตัวอย่าง Flow
 >> 🟩 Sysmon → 🟦 Wazuh → 🟥 MISP → 🟧 Alert on Dashboard
+>> # 🧠 Threat Intelligence Flow — Wazuh + MISP + Sysmon
+
+## 📁 องค์ประกอบระบบ
+
+| องค์ประกอบ | ไฟล์ | หน้าที่ |
+|--------------|------------------------------|----------------------------------------------|
+| **MISP Ruleset** | `/var/ossec/etc/rules/misp.xml` | จับ IoC จาก MISP และสร้างกลุ่ม **misp_alert** |
+| **Local Rules** | `/var/ossec/etc/rules/local_rules.xml` | เพิ่ม mapping กับ Sysmon (Event 1, 3, 22) |
+| **Integration Script** | `/var/ossec/integrations/custom-misp.py` | ติดต่อกับ MISP REST API (`/attributes/restSearch`) |
+| **Main Config** | `/var/ossec/etc/ossec.conf` | เรียกใช้ integration ผ่าน block `<integration name="custom-misp">` |
+| **Alert Output** | `/var/ossec/logs/alerts/alerts.json` | บันทึก Alert สุดท้ายที่ตรวจจับได้ |
+
+---
+
+## 🧾 Troubleshooting Checklist
+
+| อาการ | วิธีตรวจสอบ | วิธีแก้ |
+|--------|---------------|----------|
+| ไม่เจอ IoC | `tail -f /var/ossec/logs/misp-debug.log` | ตรวจสอบ API key / Attribute / IP ของ MISP |
+| ไม่มี Alert | `/var/ossec/bin/wazuh-logtest` | ตรวจดูว่า group **misp_alert** ถูกตั้งค่าใน rule หรือไม่ |
+| Rule ไม่โหลด | `grep loaded /var/ossec/logs/ossec.log` | ตรวจ path `/etc/rules/misp.xml` ว่าถูกต้องหรือไม่ |
+| Sysmon Event ไม่เข้า | ตรวจ log agent ที่ `C:\Program Files (x86)\ossec-agent\ossec.log` | ตรวจ config `<localfile>` ของ EventChannel |
+
+---
+
+## ⚙️ Threat Intelligence Flow
+
+| ลำดับ | ขั้นตอน | รายละเอียด |
+|-------|----------|-------------|
+| 1️⃣ | Sysmon Event (จาก Windows Agent) | เครื่อง Windows ส่ง Event เช่น DNS Query, Process Creation |
+| 2️⃣ | Wazuh Manager รับ Log | Log ถูกส่งมาที่ `/var/ossec/logs/ossec.log` |
+| 3️⃣ | Integration Trigger | บล็อก `<integration name="custom-misp">` ถูกเรียกใช้ |
+| 4️⃣ | custom-misp.py ทำงาน | อ่าน log และดึงค่า IoC (เช่น domain, hash, IP) |
+| 5️⃣ | Query MISP API | ส่ง HTTP POST ไปยัง `/attributes/restSearch` |
+| 6️⃣ | MISP Response | หากเจอ IoC ตรงกัน จะได้ค่า **value**, **category**, **event_id** กลับมา |
+| 7️⃣ | ส่งข้อมูลกลับเข้า Wazuh Queue | สคริปต์ส่ง JSON เช่น `{"integration":"misp","misp":{"value":"gamma.app"}}` |
+| 8️⃣ | Ruleset ทำงาน | Rule IDs (100620 → 100622 → 920100 → 920101) จับและแปลงเป็น Alert |
+| 9️⃣ | Alert แสดงผล | แสดงใน Dashboard, Telegram หรือส่งต่อไป SIEM |
+
+---
+
+## 💡 Threat Intel ช่วย Wazuh อย่างไร
+
+| ด้าน | ประโยชน์ |
+|------|-----------|
+| 🧱 **Prevention** | รู้ล่วงหน้า IP/Domain อันตราย — block ก่อนโดนจริง |
+| 🕵️ **Detection** | Wazuh ตรวจพบกิจกรรมที่ตรงกับ IoC จาก MISP |
+| ⚡ **Response** | แจ้งเตือนผ่าน Telegram / isolate เครื่องอัตโนมัติ |
+| 📊 **Visibility** | เห็นภาพรวมภัยที่ตรวจพบและแหล่งที่มา |
+
+---
+
+## 🧾 ตัวอย่างข้อมูล Threat Intel (จาก MISP)
+
+| Category | Type | Example | หมายเหตุ |
+|-----------|------|----------|------------|
+| Network Activity | domain | gamma.app | โดเมนอันตราย |
+| Payload Delivery | md5 | a9d0f2b3... | Hash ของไฟล์มัลแวร์ |
+| External Analysis | url | http://bad-actor.com/phish | Phishing URL |
+| Payload Installation | sha256 | ccd069e20c59... | ไฟล์ติดไวรัส |
+| Attribution | threat-actor | APT28 | กลุ่มผู้โจมตี |
+
+---
+
+## 🔄 Data Flow Diagram
+
+```mermaid
+graph TD
+    A[Sysmon Event (DNS / Process / Network)] -->|Event Forwarder| B[Wazuh Agent]
+    B -->|Send Event| C[Wazuh Manager]
+    C -->|Trigger custom-misp.py| D[MISP API Search]
+    D -->|Response with IoC match| E[Wazuh Integration Queue]
+    E -->|Integration JSON {"integration":"misp",...}| F[Wazuh Ruleset]
+    F -->|100620→100622→920100 chain| G[Alerts.json / Kibana]
+
 Sysmon Event (จาก Windows Agent)
         ↓
 Wazuh Manager รับ log
