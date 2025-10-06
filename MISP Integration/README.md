@@ -348,7 +348,7 @@ Wazuh manager config for this integration </global> Paste : nano /var/ossec/etc/
 ```
 
 
-Detection rules: nano /var/ossec/etc/rules/misp.xml
+Detection rules: nano /var/ossec/etc/rules/100620-misp.xml
 
 
 ```
@@ -370,6 +370,35 @@ Detection rules: nano /var/ossec/etc/rules/misp.xml
     <description>MISP - IoC found in Threat Intel - Category: $(misp.category), Attribute: $(misp.value)</description>
     <options>no_full_log</options>
     <group>misp_alert,</group>
+  </rule>
+</group>
+```
+Detection rules: nano /var/ossec/etc/rules/misp.xml
+
+
+```
+<group name="misp,sysmon,windows,">
+  <!-- Define base group for misp_alert -->
+  <rule id="920000" level="0">
+    <field name="integration">^misp$</field>
+    <description>Base group for MISP alerts</description>
+    <options>no_full_log</options>
+    <group>misp_alert</group>
+  </rule>
+  <!-- Custom MISP IoC detection -->
+  <rule id="920100" level="12">
+    <if_group>misp_alert</if_group>
+    <description>MISP IoC match detected: $(misp.value) [Category: $(misp.category)]</description>
+    <options>no_full_log</options>
+    <group>misp,alert,sysmon,misp_alert</group>
+  </rule>
+  <!-- Sysmon Event 22 mapping -->
+  <rule id="920101" level="12">
+    <if_group>misp_alert</if_group>
+    <field name="misp.value">.+</field>
+    <description>MISP IoC match detected: $(misp.value) in DNS query $(win.eventdata.queryName)</description>
+    <options>no_full_log</options>
+    <group>misp_alert,sysmon,windows</group>
   </rule>
 </group>
 ```
