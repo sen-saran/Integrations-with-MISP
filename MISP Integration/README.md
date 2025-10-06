@@ -2,7 +2,7 @@
 
 # MISP Integration [![Awesome](https://img.shields.io/badge/SOCFortress-Worlds%20First%20Free%20Cloud%20SOC-orange)](https://www.dms.go.th)
 > Interacting With MISP’s API to detect IoCs within our Wazuh Alerts.
-⚙️ Threat Intelligence กับ Wazuh และ MISP
+> ⚙️ Threat Intelligence กับ Wazuh และ MISP
 <table>
   <tr>
    <td>องค์ประกอบ</td>
@@ -21,12 +21,7 @@
    <td>เป็น “สะพาน” เชื่อมระหว่าง เหตุการณ์ที่เกิดขึ้นจริงในระบบคุณ กับ ฐานข้อมูลภัยคุกคามจาก MISP</td>
   </tr>
   <table>
-	
-	
-	
-	
 
-</div>
 
 ## Intro
 
