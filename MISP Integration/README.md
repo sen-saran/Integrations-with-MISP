@@ -101,15 +101,6 @@ eventdata.destinationIp
 
 ## Wazuh Manager - Custom Integration
 
-
-```
-# ls -lrt /var/ossec/integrations/
-total 64
--rwxr-x--- 1 root ossec  844 Jan 11 04:12 custom-misp
--rwxr-x--- 1 root ossec 8646 Jan 13 21:28 custom-misp.py
-```
-
-
 File “custom-misp”:nano /var/ossec/integrations/custom-misp
 
 
@@ -326,9 +317,15 @@ else:
 ```
 
 
+
+```
+# ls -lrt /var/ossec/integrations/
+total 64
+-rwxr-x--- 1 root ossec  844 Jan 11 04:12 custom-misp
+-rwxr-x--- 1 root ossec 8646 Jan 13 21:28 custom-misp.py
+```
+
 Replace:
-
-
 
 * “your_misp_instance”
 * “your_api_authkey”
@@ -401,6 +398,13 @@ Detection rules: nano /var/ossec/etc/rules/misp.xml
     <group>misp_alert,sysmon,windows</group>
   </rule>
 </group>
+```
+## Test Alerts (examples):
+
+Restart Wazuh manager:
+```
+sudo chown root:ossec /var/ossec/etc/rules/*
+sudo chmod 640 /var/ossec/etc/rules/*
 ```
 
 ## Test Alerts (examples):
