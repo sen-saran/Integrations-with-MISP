@@ -11,8 +11,12 @@
   <tr>
    <td>MISP (Malware Information Sharing Platform)</td>
    <td>แหล่งจัดเก็บและแชร์ Threat Intelligence เช่น IP, Domain, Hash, Email, URL ฯลฯ</td>
+  </tr>	  
+	 <tr>
    <td>Wazuh (SIEM/EDR)</td>
    <td>เครื่องมือตรวจจับเหตุการณ์ (Sysmon, Agent logs, OSSEC) แล้วนำมาวิเคราะห์เทียบกับ IoC จาก MISP</td>
+	</tr>
+	 <tr>
    <td>Integration (custom-misp.py)</td>
    <td>เป็น “สะพาน” เชื่อมระหว่าง เหตุการณ์ที่เกิดขึ้นจริงในระบบคุณ กับ ฐานข้อมูลภัยคุกคามจาก MISP</td>
   </tr>
