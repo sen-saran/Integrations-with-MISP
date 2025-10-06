@@ -12,7 +12,7 @@
    <td>MISP (Malware Information Sharing Platform)</td>
    <td>แหล่งจัดเก็บและแชร์ Threat Intelligence เช่น IP, Domain, Hash, Email, URL ฯลฯ</td>
   </tr>	  
-	 <tr>
+	<tr>
    <td>Wazuh (SIEM/EDR)</td>
    <td>เครื่องมือตรวจจับเหตุการณ์ (Sysmon, Agent logs, OSSEC) แล้วนำมาวิเคราะห์เทียบกับ IoC จาก MISP</td>
 	</tr>
