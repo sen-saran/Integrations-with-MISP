@@ -1,3 +1,25 @@
+
+
+# Wazuh, open-source and free security platform, integrates with the MITRE ATT&CK framework to map and identify threats effectively. How it is done is explained below :
+
+## 1. Log Collection and Analysis: Wazuh collects and analyzes logs from various sources, including operating systems, applications, and network devices. These logs are crucial for identifying potential threats and suspicious activities.
+
+## 2. Rule-Based Detection: Wazuh uses a set of predefined rules to detect known threats and anomalies. These rules are mapped to the MITRE ATT&CK framework, allowing Wazuh to categorize detected threats according to specific ATT&CK techniques.
+
+## 3. Threat Intelligence Integration: Wazuh can integrate with external threat intelligence feeds that provide information on the latest threats and attack techniques. This information is correlated with the MITRE ATT&CK framework to enhance threat detection capabilities.
+
+## 4. MITRE ATT&CK Framework Mapping: When a threat is detected, Wazuh maps it to the corresponding tactics, techniques, and procedures (TTPs) defined in the MITRE ATT&CK framework. This mapping helps in understanding the context and methodology of the attack.
+
+## 5. Dashboard and Reporting: Wazuh provides dashboards and reports that display detected threats along with their corresponding MITRE ATT&CK techniques. This visual representation helps security teams quickly identify and respond to threats based on their severity and the attack stage.
+
+## 6. Incident Response: By mapping threats to the MITRE ATT&CK framework, Wazuh aids in incident response by providing detailed information on the attack techniques used. This information is crucial for developing effective mitigation and remediation strategies.
+
+## 7. Continuous Monitoring and Updates: Wazuh continuously monitors the environment for new threats and updates its detection rules and mappings to the MITRE ATT&CK framework to stay current with emerging threats and attack vectors.
+
+By leveraging the MITRE ATT&CK framework, Wazuh enhances its ability to detect, categorize, and respond to security threats systematically and effectively.
+
+
+
 # วิธีการติดตั้ง MISP บน Wazuh-Single-node
 ### 1.ตั้งค่า custom-misp.py
 ---
