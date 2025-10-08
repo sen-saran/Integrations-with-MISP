@@ -1,4 +1,4 @@
-[<img src="../Images/MISP.png" align="right" width="150" height="150" />](https://www.dms.go.th)
+[<img src="../Images/MISP.png" align="right" width="100%" height="100%" />](https://www.dms.go.th)
 
 # MISP Integration [![Awesome](https://img.shields.io/badge/SOCFortress-Worlds%20First%20Free%20Cloud%20SOC-orange)](https://www.dms.go.th)
 > Interacting With MISP’s API to detect IoCs within our Wazuh Alerts.
